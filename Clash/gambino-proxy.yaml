@@ -1,0 +1,27 @@
+payload:
+  - DOMAIN-SUFFIX,2ip.ru
+  - DOMAIN-SUFFIX,2ip.io
+  - DOMAIN-SUFFIX,browserleaks.com
+  - DOMAIN-SUFFIX,ipinfo.io
+  - DOMAIN-SUFFIX,dnsleaktest.com
+  - DOMAIN-SUFFIX,remna.st.com
+  - DOMAIN-SUFFIX,xraycore.org.com
+  - DOMAIN-SUFFIX,mishatugushev.ru
+  - DOMAIN-SUFFIX,mos-gorsud.co
+  - DOMAIN-SUFFIX,kino.pub
+  - DOMAIN-SUFFIX,kpapp.link
+  - DOMAIN-SUFFIX,kpappn.link
+  - DOMAIN-SUFFIX,kinopub.online
+  - DOMAIN-SUFFIX,pushbr.com
+  - DOMAIN-SUFFIX,api.srvkp.com
+#  - DOMAIN-SUFFIX,gravatar.com
+#  - DOMAIN-SUFFIX,cdn-azure.net
+#  - DOMAIN-SUFFIX,digital-cdn.net
+#  - DOMAIN-SUFFIX,cdntogo.net
+  - DOMAIN-SUFFIX,itorrents-igruha.org
+  - DOMAIN-SUFFIX,ti-url.com
+  - DOMAIN-SUFFIX,monkeytype.com
+  - DOMAIN-SUFFIX,liveball.uno
+  - DOMAIN-SUFFIX,liveball.website
+  - DOMAIN-SUFFIX,hoofoot.com
+  - DOMAIN-SUFFIX,ente.io
