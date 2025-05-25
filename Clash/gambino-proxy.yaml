@@ -21,6 +21,8 @@ payload:
 #  - DOMAIN-SUFFIX,cdn-azure.net
 #  - DOMAIN-SUFFIX,digital-cdn.net
 #  - DOMAIN-SUFFIX,cdntogo.net
+  - DOMAIN-SUFFIX,habr.com
+  - DOMAIN-SUFFIX,habrastorage.org
   - DOMAIN-SUFFIX,itorrents-igruha.org
   - DOMAIN-SUFFIX,ti-url.com
   - DOMAIN-SUFFIX,monkeytype.com
