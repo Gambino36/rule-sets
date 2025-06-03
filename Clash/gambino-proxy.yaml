@@ -10,12 +10,12 @@ payload:
   - DOMAIN-SUFFIX,xraycore.org.com
   - DOMAIN-SUFFIX,mishatugushev.ru
   - DOMAIN-SUFFIX,mos-gorsud.co
-  - DOMAIN-SUFFIX,returnyoutubedislikeapi.com
   - DOMAIN-SUFFIX,kino.pub
   - DOMAIN-SUFFIX,kpapp.link
   - DOMAIN-SUFFIX,kpappn.link
   - DOMAIN-SUFFIX,kinopub.online
   - DOMAIN-SUFFIX,fuckrkn.link
+  - DOMAIN-SUFFIX,cdn3a.online
   - DOMAIN-SUFFIX,pushbr.com
   - DOMAIN-SUFFIX,api.srvkp.com
 #  - DOMAIN-SUFFIX,gravatar.com
@@ -32,3 +32,4 @@ payload:
   - DOMAIN-SUFFIX,hoofoot.com
   - DOMAIN-SUFFIX,ente.io
   - DOMAIN-SUFFIX,cdn.cra.cz
+  - DOMAIN-SUFFIX,returnyoutubedislikeapi.com
