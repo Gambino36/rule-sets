@@ -1,10 +1,4 @@
 payload:
-  - IP-CIDR,104.16.248.249/32
-  - IP-CIDR,104.16.249.249/32
-  - IP-CIDR,8.8.8.8/32
-  - IP-CIDR,8.8.4.4/32
-  - DOMAIN-SUFFIX,cloudflare-dns.com
-  - DOMAIN-SUFFIX,dns.google
   - DOMAIN-SUFFIX,2ip.ru
   - DOMAIN-SUFFIX,2ip.io
   - DOMAIN-SUFFIX,browserleaks.com
