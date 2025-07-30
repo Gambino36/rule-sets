@@ -30,4 +30,6 @@ payload:
   - DOMAIN-SUFFIX,cdn.cra.cz
   - DOMAIN-SUFFIX,spotlightmoment.com
   - DOMAIN-SUFFIX,edgedl.me.gvt1.com
+  - DOMAIN-SUFFIX,ahcdn.com
+  - DOMAIN-SUFFIX,xhcdn.com
   - DOMAIN-SUFFIX,returnyoutubedislikeapi.com
