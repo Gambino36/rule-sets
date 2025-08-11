@@ -16,8 +16,9 @@ payload:
   - DOMAIN-SUFFIX,kinopub.online
   - DOMAIN-SUFFIX,fuckrkn.link
   - DOMAIN-SUFFIX,cdn3a.online
+  - DOMAIN-SUFFIX,cdn-azure.net
   - DOMAIN-SUFFIX,pushbr.com
-#  - DOMAIN-SUFFIX,api.srvkp.com
+  - DOMAIN-SUFFIX,api.srvkp.com
   - DOMAIN-SUFFIX,habr.com
   - DOMAIN-SUFFIX,habrastorage.org
   - DOMAIN-SUFFIX,itorrents-igruha.org
