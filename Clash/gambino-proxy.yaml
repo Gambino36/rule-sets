@@ -22,7 +22,6 @@ payload:
   - DOMAIN-SUFFIX,cdn2site.com
   - DOMAIN-SUFFIX,digital-cdn.net
   - DOMAIN-SUFFIX,cdn3a.online
-  - DOMAIN-SUFFIX,cdntogo.net
   - DOMAIN-SUFFIX,habr.com
   - DOMAIN-SUFFIX,habrastorage.org
   - DOMAIN-SUFFIX,itorrents-igruha.org
@@ -40,4 +39,5 @@ payload:
   - DOMAIN-SUFFIX,xhpingcdn.com
   - DOMAIN-SUFFIX,returnyoutubedislikeapi.com
 #  - DOMAIN-SUFFIX,cdn-azure.net
+#  - DOMAIN-SUFFIX,cdntogo.net
 
