@@ -29,6 +29,8 @@ payload:
   - DOMAIN-SUFFIX,monkeytype.com
   - DOMAIN-SUFFIX,liveball.uno
   - DOMAIN-SUFFIX,liveball.website
+  - DOMAIN-SUFFIX,liveball.sx
+  - DOMAIN-SUFFIX,liveball.st
   - DOMAIN-SUFFIX,hoofoot.com
   - DOMAIN-SUFFIX,ente.io
   - DOMAIN-SUFFIX,cdn.cra.cz
