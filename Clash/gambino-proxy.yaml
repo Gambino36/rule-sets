@@ -40,6 +40,8 @@ payload:
   - DOMAIN-SUFFIX,xhcdn.com
   - DOMAIN-SUFFIX,xhpingcdn.com
   - DOMAIN-SUFFIX,returnyoutubedislikeapi.com
+  - DOMAIN-SUFFIX,adblockplus.org
+  - DOMAIN-SUFFIX,getadblock.com
 #  - DOMAIN-SUFFIX,cdn-azure.net
 #  - DOMAIN-SUFFIX,cdntogo.net
 
