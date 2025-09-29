@@ -3,8 +3,10 @@ payload:
   - DOMAIN-SUFFIX,2ip.io
   - DOMAIN-SUFFIX,browserleaks.com
   - DOMAIN-SUFFIX,ipinfo.io
+  - DOMAIN-SUFFIX,ip-api.com
   - DOMAIN-SUFFIX,ipapi.co
   - DOMAIN-SUFFIX,ip.sb
+  - DOMAIN-SUFFIX,myip.com
   - DOMAIN-SUFFIX,ipwhois.app
   - DOMAIN-SUFFIX,ipwho.is
   - DOMAIN-SUFFIX,ident.me
