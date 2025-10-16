@@ -17,14 +17,14 @@ payload:
   - DOMAIN-SUFFIX,remna.st.com
   - DOMAIN-SUFFIX,xraycore.org.com
   - DOMAIN-SUFFIX,mishatugushev.ru
-  - DOMAIN-SUFFIX,mos-gorsud.co
   - DOMAIN-SUFFIX,kino.pub
-  - DOMAIN-SUFFIX,gravatar.com
   - DOMAIN-SUFFIX,kpapp.link
   - DOMAIN-SUFFIX,kpap.link
   - DOMAIN-SUFFIX,kpappn.link
   - DOMAIN-SUFFIX,kinopub.online
+  - DOMAIN-SUFFIX,mos-gorsud.co
   - DOMAIN-SUFFIX,fuckrkn.link
+  - DOMAIN-SUFFIX,gravatar.com
   - DOMAIN-SUFFIX,pushbr.com
   - DOMAIN-SUFFIX,api.srvkp.com
   - DOMAIN-SUFFIX,cdn2site.com
@@ -47,9 +47,8 @@ payload:
   - DOMAIN-SUFFIX,ahcdn.com
   - DOMAIN-SUFFIX,xhcdn.com
   - DOMAIN-SUFFIX,xhpingcdn.com
-  - DOMAIN-SUFFIX,returnyoutubedislikeapi.com
   - DOMAIN-SUFFIX,adblockplus.org
   - DOMAIN-SUFFIX,getadblock.com
-#  - DOMAIN-SUFFIX,cdn-azure.net
-#  - DOMAIN-SUFFIX,cdntogo.net
+#  - DOMAIN-SUFFIX,returnyoutubedislikeapi.com
+
 
