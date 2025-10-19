@@ -55,19 +55,14 @@ jobs:
 
     - name: Get current date
       id: date
-      run: echo "DATE=$(date +'%Y-%m-%d %H:%M:%S')" >> $GITHUB_ENV
+      run: echo "DATE=$(date -u +'%Y-%m-%dT%H:%M:%S')" >> $GITHUB_ENV  # ISO с T (UTC)
 
     - name: Commit and push MRS file
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
-        git add Clash/gambino-proxy.mrs
-        if git diff --staged --quiet; then
-          echo "No changes to commit"
-        else
-          git commit -m "Auto-compile gambino-proxy.mrs from gambino-proxy.yaml on ${{ env.DATE }} [skip ci]"
-          git push
-        fi
+        git commit -m "Generating .mrs ${{ env.DATE }} [skip ci]" -a || echo "No changes to commit"
+        git push
 
     - name: Upload MRS artifact (for download)
       uses: actions/upload-artifact@v4
