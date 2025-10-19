@@ -1,6 +1,7 @@
 name: Compile MRS for gambino-proxy
 
 on:
+  workflow_dispatch:  # Добавляем ручной запуск
   push:
     branches: [ master ]
     paths:
