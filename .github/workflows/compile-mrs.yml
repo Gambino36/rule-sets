@@ -1,0 +1,60 @@
+name: Compile MRS for gambino-proxy
+
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - 'Clash/gambino-proxy.yaml'  # Запуск только при изменениях в этом файле
+  pull_request:
+    branches: [ master ]
+    paths:
+      - 'Clash/gambino-proxy.yaml'
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}  # Для коммитов обратно
+        ref: master  # Фиксируем ветку master
+
+    - name: Download latest mihomo binary
+      run: |
+        # Получаем тег последней версии mihomo
+        LATEST_RELEASE=$(curl -s https://api.github.com/repos/MetaCubeX/mihomo/releases/latest | grep '"tag_name"' | cut -d'"' -f4)
+        echo "Downloading mihomo version: $LATEST_RELEASE"
+        # Скачиваем бинарник для Linux x64
+        wget https://github.com/MetaCubeX/mihomo/releases/download/${LATEST_RELEASE}/mihomo-linux-amd64-v${LATEST_RELEASE#v}.gz
+        gunzip mihomo-linux-amd64-v${LATEST_RELEASE#v}.gz
+        chmod +x mihomo-linux-amd64-v${LATEST_RELEASE#v}
+        mv mihomo-linux-amd64-v${LATEST_RELEASE#v} mihomo
+        sudo mv mihomo /usr/local/bin/  # Делаем доступным глобально
+
+    - name: Compile gambino-proxy to MRS
+      run: |
+        # Компиляция: domain (DOMAIN-SUFFIX), yaml формат, в ту же папку Clash/
+        mihomo convert-ruleset domain yaml Clash/gambino-proxy.yaml Clash/gambino-proxy.mrs
+        # Проверяем, что файл создался (для логов)
+        ls -la Clash/gambino-proxy.mrs
+
+    - name: Commit and push MRS file
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add Clash/gambino-proxy.mrs
+        if git diff --staged --quiet; then
+          echo "No changes to commit"
+        else
+          git commit -m "Auto-compile gambino-proxy.mrs from gambino-proxy.yaml [skip ci]"
+          git push
+        fi
+
+    - name: Upload MRS artifact (for download)
+      uses: actions/upload-artifact@v4
+      with:
+        name: gambino-proxy-mrs
+        path: Clash/gambino-proxy.mrs
+        retention-days: 7  # Храним 7 дней для скачивания
