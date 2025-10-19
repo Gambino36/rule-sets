@@ -1,11 +1,14 @@
 name: Compile MRS for gambino-proxy
 
+permissions:
+  contents: write
+
 on:
-  workflow_dispatch:  # Добавляем ручной запуск
+  workflow_dispatch:  # Ручной запуск
   push:
     branches: [ master ]
     paths:
-      - 'Clash/gambino-proxy.yaml'  # Запуск только при изменениях в этом файле
+      - 'Clash/gambino-proxy.yaml'  # Запуск только при изменениях
   pull_request:
     branches: [ master ]
     paths:
@@ -19,27 +22,35 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
-        token: ${{ secrets.GITHUB_TOKEN }}  # Для коммитов обратно
-        ref: master  # Фиксируем ветку master
+        token: ${{ secrets.GITHUB_TOKEN }}  # Для коммитов
+        ref: master  # Фиксируем ветку
 
     - name: Download latest mihomo binary
       run: |
-        # Получаем тег последней версии mihomo
+        # Получаем тег последней версии
         LATEST_RELEASE=$(curl -s https://api.github.com/repos/MetaCubeX/mihomo/releases/latest | grep '"tag_name"' | cut -d'"' -f4)
         echo "Downloading mihomo version: $LATEST_RELEASE"
-        # Скачиваем бинарник для Linux x64
+        # Скачиваем бинарник
         wget https://github.com/MetaCubeX/mihomo/releases/download/${LATEST_RELEASE}/mihomo-linux-amd64-v${LATEST_RELEASE#v}.gz
         gunzip mihomo-linux-amd64-v${LATEST_RELEASE#v}.gz
         chmod +x mihomo-linux-amd64-v${LATEST_RELEASE#v}
         mv mihomo-linux-amd64-v${LATEST_RELEASE#v} mihomo
-        sudo mv mihomo /usr/local/bin/  # Делаем доступным глобально
+        # Добавляем в PATH без sudo
+        export PATH="$PWD:$PATH"
+        echo "PATH updated, mihomo ready"
 
     - name: Compile gambino-proxy to MRS
+      env:
+        NO_SKIP: true
       run: |
-        # Компиляция: domain (DOMAIN-SUFFIX), yaml формат, в ту же папку Clash/
+        # Компиляция в Clash/
         mihomo convert-ruleset domain yaml Clash/gambino-proxy.yaml Clash/gambino-proxy.mrs
-        # Проверяем, что файл создался (для логов)
+        # Проверка (для логов)
         ls -la Clash/gambino-proxy.mrs
+
+    - name: Get current date
+      id: date
+      run: echo "DATE=$(date +'%Y-%m-%d %H:%M:%S')" >> $GITHUB_ENV
 
     - name: Commit and push MRS file
       run: |
@@ -49,7 +60,7 @@ jobs:
         if git diff --staged --quiet; then
           echo "No changes to commit"
         else
-          git commit -m "Auto-compile gambino-proxy.mrs from gambino-proxy.yaml [skip ci]"
+          git commit -m "Auto-compile gambino-proxy.mrs from gambino-proxy.yaml on ${{ env.DATE }} [skip ci]"
           git push
         fi
 
@@ -58,4 +69,8 @@ jobs:
       with:
         name: gambino-proxy-mrs
         path: Clash/gambino-proxy.mrs
-        retention-days: 7  # Храним 7 дней для скачивания
+        retention-days: 7
+
+    - name: Delete temp files
+      run: |
+        rm -f mihomo*.gz mihomo  # Чистим бинарник тоже
