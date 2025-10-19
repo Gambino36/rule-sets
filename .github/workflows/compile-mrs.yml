@@ -25,19 +25,20 @@ jobs:
         token: ${{ secrets.GITHUB_TOKEN }}  # Для коммитов
         ref: master  # Фиксируем ветку
 
-    - name: Download latest mihomo binary
+    - name: Download mihomo v1.19.15 binary
       run: |
-        # Получаем тег последней версии
-        LATEST_RELEASE=$(curl -s https://api.github.com/repos/MetaCubeX/mihomo/releases/latest | grep '"tag_name"' | cut -d'"' -f4)
-        echo "Downloading mihomo version: $LATEST_RELEASE"
-        # Скачиваем бинарник
-        wget https://github.com/MetaCubeX/mihomo/releases/download/${LATEST_RELEASE}/mihomo-linux-amd64-v${LATEST_RELEASE#v}.gz
-        gunzip mihomo-linux-amd64-v${LATEST_RELEASE#v}.gz
-        chmod +x mihomo-linux-amd64-v${LATEST_RELEASE#v}
-        mv mihomo-linux-amd64-v${LATEST_RELEASE#v} mihomo
-        # Добавляем в PATH без sudo
+        set -e  # Остановка на ошибках
+        VERSION="v1.19.15"
+        echo "Downloading mihomo version: $VERSION"
+        # Скачиваем v3-вариант для amd64 (modern CPU)
+        wget https://github.com/MetaCubeX/mihomo/releases/download/${VERSION}/mihomo-linux-amd64-v3-v${VERSION#v}.gz
+        gunzip mihomo-linux-amd64-v3-v${VERSION#v}.gz
+        chmod +x mihomo-linux-amd64-v3-v${VERSION#v}
+        mv mihomo-linux-amd64-v3-v${VERSION#v} mihomo
+        # Добавляем в PATH (без sudo)
         export PATH="$PWD:$PATH"
-        echo "PATH updated, mihomo ready"
+        # Проверка установки
+        mihomo -h || { echo "Error: mihomo failed to install"; exit 1; }
 
     - name: Compile gambino-proxy to MRS
       env:
@@ -73,4 +74,4 @@ jobs:
 
     - name: Delete temp files
       run: |
-        rm -f mihomo*.gz mihomo  # Чистим бинарник тоже
+        rm -f mihomo*.gz mihomo  # Чистим gz и бинарник
