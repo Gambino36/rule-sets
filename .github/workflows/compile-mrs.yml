@@ -35,17 +35,21 @@ jobs:
         gunzip mihomo-linux-amd64-v3-v${VERSION#v}.gz
         chmod +x mihomo-linux-amd64-v3-v${VERSION#v}
         mv mihomo-linux-amd64-v3-v${VERSION#v} mihomo
-        # Добавляем в PATH (без sudo)
-        export PATH="$PWD:$PATH"
         # Проверка установки
-        mihomo -h || { echo "Error: mihomo failed to install"; exit 1; }
+        ./mihomo -h || { echo "Error: mihomo failed to install"; exit 1; }
 
     - name: Compile gambino-proxy to MRS
       env:
         NO_SKIP: true
       run: |
-        # Компиляция в Clash/
-        mihomo convert-ruleset domain yaml Clash/gambino-proxy.yaml Clash/gambino-proxy.mrs
+        set -e  # Остановка на ошибках
+        # Проверка файла mihomo
+        if [ ! -x "./mihomo" ]; then
+          echo "Error: mihomo binary not found or not executable"
+          exit 1
+        fi
+        # Компиляция в Clash/ (./mihomo — относительный путь)
+        ./mihomo convert-ruleset domain yaml Clash/gambino-proxy.yaml Clash/gambino-proxy.mrs
         # Проверка (для логов)
         ls -la Clash/gambino-proxy.mrs
 
