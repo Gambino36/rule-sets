@@ -9,7 +9,7 @@ payload:
 # Telegram — Голос и видео (RTP / P2P)
   - DST-PORT,596-599
 # Discord
-#  - DST-PORT,50000-65535,PROXY
+#  - DST-PORT,50000-50100,PROXY
 # TCP порт для сигнальных звонков Telegram
   - DST-PORT,1400
 # Google Meet
