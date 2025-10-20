@@ -12,6 +12,8 @@ payload:
   - DOMAIN-SUFFIX,ident.me
   - DOMAIN-SUFFIX,dnsleaktest.com
   - DOMAIN-SUFFIX,check-host.net
+  - DOMAIN-SUFFIX,dnsleaktest.com
+  - DOMAIN-SUFFIX,dnscheck.tools
   - DOMAIN-SUFFIX,board.zash.run.place
   - DOMAIN-SUFFIX,tile.osm.org
   - DOMAIN-SUFFIX,remna.st.com
