@@ -11,7 +11,7 @@
 ### Telegram — Голос и видео (RTP / P2P)
 #DST-PORT,596-599,PROXY
 ### Discord
-#DST-PORT,19200-19500,PROXY
+DST-PORT,19200-19500,PROXY
 DST-PORT,50000-50100,PROXY
 ### TCP порт для сигнальных звонков Telegram
 #DST-PORT,1400,PROXY
