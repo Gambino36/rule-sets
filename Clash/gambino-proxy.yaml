@@ -5,6 +5,7 @@ payload:
   - DOMAIN-SUFFIX,ipinfo.io
   - DOMAIN-SUFFIX,ip-api.com
   - DOMAIN-SUFFIX,ipapi.co
+  - DOMAIN-SUFFIX,ipapi.is
   - DOMAIN-SUFFIX,ip.sb
   - DOMAIN-SUFFIX,myip.com
   - DOMAIN-SUFFIX,ipwhois.app
