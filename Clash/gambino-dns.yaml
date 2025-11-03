@@ -14,6 +14,7 @@ payload:
   - https://dns.adguard-dns.com/dns-query
   - https://94.140.14.14/dns-query
   - https://common.dot.dns.yandex.net/dns-query
+  - https://77.88.8.8/dns-query
   - IP-CIDR,1.1.1.1/32
   - IP-CIDR,1.0.0.1/32
   - IP-CIDR,8.8.8.8/32
