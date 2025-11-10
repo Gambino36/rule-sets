@@ -3,6 +3,7 @@ payload:
   - DOMAIN-SUFFIX,2ip.io
   - DOMAIN-SUFFIX,browserleaks.com
   - DOMAIN-SUFFIX,browserleaks.org
+  - DOMAIN-SUFFIX,browserleaks.net
   - DOMAIN-SUFFIX,ipinfo.io
   - DOMAIN-SUFFIX,ip-api.com
   - DOMAIN-SUFFIX,ipapi.co
