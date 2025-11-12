@@ -20,6 +20,7 @@ payload:
   - DOMAIN-SUFFIX,board.zash.run.place
   - DOMAIN-SUFFIX,tile.osm.org
   - DOMAIN-SUFFIX,remna.st.com
+  - DOMAIN-SUFFIX,docs.rw.com
   - DOMAIN-SUFFIX,xraycore.org.com
   - DOMAIN-SUFFIX,mishatugushev.ru
   - DOMAIN-SUFFIX,kino.pub
