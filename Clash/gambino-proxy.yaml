@@ -14,7 +14,6 @@ payload:
   - DOMAIN-SUFFIX,ipwhois.app
   - DOMAIN-SUFFIX,ipwho.is
   - DOMAIN-SUFFIX,ident.me
-  - DOMAIN-SUFFIX,dnsleaktest.com
   - DOMAIN-SUFFIX,check-host.net
   - DOMAIN-SUFFIX,dnsleaktest.com
   - DOMAIN-SUFFIX,dnscheck.tools
