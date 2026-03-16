@@ -24,10 +24,8 @@ payload:
   - DOMAIN-SUFFIX,kino.pub
   - DOMAIN-SUFFIX,kpapp.link
   - DOMAIN-SUFFIX,kpap.link
-  - DOMAIN-SUFFIX,kpappn.link
   - DOMAIN-SUFFIX,kinopub.online
   - DOMAIN-SUFFIX,mos-gorsud.co
-  - DOMAIN-SUFFIX,fuckrkn.link
   - DOMAIN-SUFFIX,gravatar.com
   - DOMAIN-SUFFIX,pushbr.com
   - DOMAIN-SUFFIX,api.srvkp.com
@@ -35,7 +33,6 @@ payload:
   - DOMAIN-SUFFIX,api.ios-kp.store
   - DOMAIN-SUFFIX,cdn2cdn.com
   - DOMAIN-SUFFIX,digital-cdn.net
-  - DOMAIN-SUFFIX,cdn3a.online
   - DOMAIN-SUFFIX,habr.com
   - DOMAIN-SUFFIX,habrastorage.org
   - DOMAIN-SUFFIX,itorrents-igruha.org
