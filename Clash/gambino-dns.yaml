@@ -13,6 +13,8 @@ payload:
   - https://8.8.8.8/dns-query
   - https://dns.adguard-dns.com/dns-query
   - https://94.140.14.14/dns-query
+  - https://dns.mullvad.net/dns-query
+  - https://194.242.2.2/dns-query
   - https://common.dot.dns.yandex.net/dns-query
   - https://77.88.8.8/dns-query
   - IP-CIDR,1.1.1.1/32
