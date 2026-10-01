@@ -1,0 +1,75 @@
+name: Update proxy MRS
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - Clash/gambino-proxy.yaml
+      - .github/workflows/update-proxy-mrs.yml
+  pull_request:
+    branches: [master]
+    paths:
+      - Clash/gambino-proxy.yaml
+      - .github/workflows/update-proxy-mrs.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: proxy-mrs-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  convert:
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out rules
+        uses: actions/checkout@v4
+        with:
+          # For queued pushes, compile the current branch rather than an old commit.
+          ref: ${{ github.ref }}
+
+      - name: Download mihomo
+        shell: bash
+        env:
+          MIHOMO_VERSION: v1.19.32
+          MIHOMO_SHA256: 306f81e723e60ce6b828899a6fe83e1d00e9ecefb2dc8d4d849312a5bc00efdc
+        run: |
+          archive="${RUNNER_TEMP}/mihomo.gz"
+          curl --fail --location --retry 3 \
+            "https://github.com/MetaCubeX/mihomo/releases/download/${MIHOMO_VERSION}/mihomo-linux-amd64-v1-${MIHOMO_VERSION}.gz" \
+            --output "${archive}"
+          printf '%s  %s\n' "${MIHOMO_SHA256}" "${archive}" | sha256sum --check
+          gzip --decompress --stdout "${archive}" > "${RUNNER_TEMP}/mihomo"
+          chmod +x "${RUNNER_TEMP}/mihomo"
+
+      - name: Convert and validate domain rules
+        shell: bash
+        run: |
+          log="$("${RUNNER_TEMP}/mihomo" convert-ruleset domain yaml \
+            Clash/gambino-proxy.yaml Clash/gambino-proxy.mrs 2>&1)"
+          printf '%s\n' "${log}"
+          if [[ "${log}" == *"skip invalid domain"* ]]; then
+            echo "::error::The YAML contains invalid domain rules; MRS was not published."
+            exit 1
+          fi
+          "${RUNNER_TEMP}/mihomo" convert-ruleset domain mrs \
+            Clash/gambino-proxy.mrs "${RUNNER_TEMP}/gambino-proxy.txt"
+
+      - name: Commit updated MRS
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          git add -- Clash/gambino-proxy.mrs
+          if git diff --cached --quiet -- Clash/gambino-proxy.mrs; then
+            echo "MRS is already up to date."
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m "Update gambino-proxy.mrs"
+          git push origin HEAD:master
