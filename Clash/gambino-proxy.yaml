@@ -1,69 +1,69 @@
 payload:
-  - +.browserleaks.com
-  - +.browserleaks.org
-  - +.browserleaks.net
-  - +.ipinfo.io
-  - +.ip-api.com
-  - +.ipapi.co
-  - +.ipapi.is
-  - +.ipip.net
-  - +.ip.sb
-  - +.myip.com
-  - +.ipwhois.app
-  - +.ipwho.is
-  - +.ident.me
-  - +.check-host.net
-  - +.dnsleaktest.com
-  - +.dnscheck.tools
-  - +.board.zash.run.place
-  - +.tile.osm.org
-  - +.remna.st.com
-  - +.docs.rw
-  - +.xraycore.org.com
-  - +.mishatugushev.ru
-  - +.kino.pub
-  - +.kpapp.link
-  - +.kpap.link
-  - +.kinopub.online
-  - +.mos-gorsud.co
-  - +.gravatar.com
-  - +.pushbr.com
-  - +.api.srvkp.com
-  - +.cdn2site.com
+  - +.adblockplus.org
+  - +.ahcdn.com
   - +.api.ios-kp.store
+  - +.api.srvkp.com
+  - +.board.zash.run.place
+  - +.browserleaks.com
+  - +.browserleaks.net
+  - +.browserleaks.org
+  - +.cdn.cra.cz
   - +.cdn2cdn.com
+  - +.cdn2site.com
+  - +.check-host.net
   - +.digital-cdn.net
+  - +.dnscheck.tools
+  - +.dnsleaktest.com
+  - +.docs.rw
+  - +.doppiocdn.com
+  - +.edgedl.me.gvt1.com
+  - +.ente.io
+  - +.getadblock.com
+  - +.gooforkoora.com
+  - +.gravatar.com
   - +.habr.com
   - +.habrastorage.org
+  - +.hoofoot.com
+  - +.ident.me
+  - +.imageban.ru
+  - +.images.performgroup.com
+  - +.imagetmdb.com
+  - +.ip-api.com
+  - +.ip.sb
+  - +.ipapi.co
+  - +.ipapi.is
+  - +.ipinfo.io
+  - +.ipip.net
+  - +.ipwho.is
+  - +.ipwhois.app
   - +.itorrents-igruha.org
-  - +.ti-url.com
-  - +.monkeytype.com
+  - +.kino.pub
+  - +.kinopub.online
+  - +.kpap.link
+  - +.kpapp.link
+  - +.liquipedia.net
+  - +.liveball.st
+  - +.liveball.sx
   - +.liveball.uno
   - +.liveball.website
-  - +.liveball.sx
-  - +.liveball.st
-  - +.hoofoot.com
-  - +.ente.io
-  - +.cdn.cra.cz
+  - +.mihomo-docs.netlify.app.com
+  - +.mishatugushev.ru
+  - +.monkeytype.com
+  - +.mos-gorsud.co
+  - +.myip.com
+  - +.nexus-cdn.com
+  - +.postimg.cc
+  - +.pushbr.com
+  - +.remna.st.com
   - +.spotlightmoment.com
-  - +.gooforkoora.com
+  - +.ti-url.com
+  - +.tile.osm.org
+  - +.ukminlt.org
+  - +.video.flirtify.com
   - +.videohatkora.com
-  - +.edgedl.me.gvt1.com
-  - +.ahcdn.com
+  - +.wccftech.com
+  - +.wootility.io
+  - +.wooting.io
   - +.xhcdn.com
   - +.xhpingcdn.com
-  - +.doppiocdn.com
-  - +.video.flirtify.com
-  - +.adblockplus.org
-  - +.getadblock.com
-  - +.wooting.io
-  - +.wootility.io
-  - +.postimg.cc
-  - +.liquipedia.net
-  - +.images.performgroup.com
-  - +.mihomo-docs.netlify.app.com
-  - +.ukminlt.org
-  - +.wccftech.com
-  - +.nexus-cdn.com
-  - +.imageban.ru
-  - +.imagetmdb.com
+  - +.xraycore.org.com

@@ -18,7 +18,8 @@ permissions:
 
 concurrency:
   group: proxy-mrs-${{ github.ref }}
-  cancel-in-progress: false
+  # A new edit cancels older work and starts a new five-minute window.
+  cancel-in-progress: true
 
 jobs:
   convert:
@@ -26,28 +27,141 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      MIHOMO_VERSION: v1.19.32
+      MIHOMO_SHA256: 306f81e723e60ce6b828899a6fe83e1d00e9ecefb2dc8d4d849312a5bc00efdc
     steps:
+      - name: Set five-minute conversion deadline
+        id: delay
+        shell: bash
+        run: echo "deadline=$(( $(date +%s) + 300 ))" >> "${GITHUB_OUTPUT}"
+
       - name: Check out rules
         uses: actions/checkout@v4
         with:
-          # For queued pushes, compile the current branch rather than an old commit.
           ref: ${{ github.ref }}
 
-      - name: Download mihomo
+      - name: Set up Python and cache pip packages
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          # Hash the pinned dependency in this workflow; no requirements file needed.
+          cache-dependency-path: .github/workflows/update-proxy-mrs.yml
+
+      - name: Install YAML parser
+        run: python -m pip install --disable-pip-version-check 'PyYAML==6.0.3'
+
+      - name: Remove exact duplicates and sort source YAML
         shell: bash
-        env:
-          MIHOMO_VERSION: v1.19.32
-          MIHOMO_SHA256: 306f81e723e60ce6b828899a6fe83e1d00e9ecefb2dc8d4d849312a5bc00efdc
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import yaml
+
+          source = Path('Clash/gambino-proxy.yaml')
+          loader = getattr(yaml, 'CSafeLoader', yaml.SafeLoader)
+          data = yaml.load(source.read_text(encoding='utf-8'), Loader=loader)
+          if not isinstance(data, dict) or not isinstance(data.get('payload'), list):
+              raise SystemExit('YAML must contain a payload list.')
+          rules = data['payload']
+          if not rules or any(
+              not isinstance(rule, str) or not rule or rule != rule.strip()
+              or '\n' in rule or '\r' in rule for rule in rules
+          ):
+              raise SystemExit('Domain rules must be non-empty, single-line strings without surrounding whitespace.')
+
+          # Only equal strings are duplicates; parent and child domains remain.
+          cleaned = sorted(set(rules))
+          if rules != cleaned:
+              class IndentedSafeDumper(yaml.SafeDumper):
+                  def increase_indent(self, flow=False, indentless=False):
+                      return super().increase_indent(flow, False)
+
+              data['payload'] = cleaned
+              source.write_text(
+                  yaml.dump(data, Dumper=IndentedSafeDumper, sort_keys=False,
+                            allow_unicode=True, default_flow_style=False),
+                  encoding='utf-8',
+              )
+          print(f'Removed {len(rules) - len(cleaned)} exact duplicate(s); sorted {len(cleaned)} rules A to Z.')
+          PY
+
+      - name: Save cleaned and sorted YAML immediately
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          git add -- Clash/gambino-proxy.yaml
+          if git diff --cached --quiet -- Clash/gambino-proxy.yaml; then
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m "Deduplicate and sort proxy domain rules"
+          # GITHUB_TOKEN commits do not trigger another workflow run.
+          git push origin HEAD:master
+
+      - name: Restore cached mihomo archive
+        id: mihomo-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/mihomo.gz
+          key: mihomo-${{ runner.os }}-${{ runner.arch }}-${{ env.MIHOMO_VERSION }}-${{ env.MIHOMO_SHA256 }}
+
+      - name: Prepare verified mihomo
+        shell: bash
         run: |
           archive="${RUNNER_TEMP}/mihomo.gz"
-          curl --fail --location --retry 3 \
-            "https://github.com/MetaCubeX/mihomo/releases/download/${MIHOMO_VERSION}/mihomo-linux-amd64-v1-${MIHOMO_VERSION}.gz" \
-            --output "${archive}"
+          if [[ -f "${archive}" ]] && ! \
+            printf '%s  %s\n' "${MIHOMO_SHA256}" "${archive}" | sha256sum --check --status; then
+            echo 'Discarding a cached archive with an incorrect checksum.'
+            rm -- "${archive}"
+          fi
+          if [[ ! -f "${archive}" ]]; then
+            curl --fail --location --retry 3 \
+              "https://github.com/MetaCubeX/mihomo/releases/download/${MIHOMO_VERSION}/mihomo-linux-amd64-v1-${MIHOMO_VERSION}.gz" \
+              --output "${archive}"
+          fi
           printf '%s  %s\n' "${MIHOMO_SHA256}" "${archive}" | sha256sum --check
           gzip --decompress --stdout "${archive}" > "${RUNNER_TEMP}/mihomo"
           chmod +x "${RUNNER_TEMP}/mihomo"
 
+      - name: Save verified mihomo archive to cache
+        if: steps.mihomo-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/mihomo.gz
+          key: mihomo-${{ runner.os }}-${{ runner.arch }}-${{ env.MIHOMO_VERSION }}-${{ env.MIHOMO_SHA256 }}
+
+      - name: Wait until the five-minute deadline
+        shell: bash
+        env:
+          BUILD_DEADLINE: ${{ steps.delay.outputs.deadline }}
+        run: |
+          remaining=$(( BUILD_DEADLINE - $(date +%s) ))
+          if (( remaining > 0 )); then
+            echo "Waiting ${remaining} seconds before converting MRS."
+            sleep "${remaining}"
+          fi
+
+      - name: Check that source rules are still current
+        id: current
+        shell: bash
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" != 'pull_request' ]]; then
+            git fetch origin master
+            if ! git diff --quiet HEAD origin/master -- \
+              Clash/gambino-proxy.yaml .github/workflows/update-proxy-mrs.yml; then
+              echo 'Source changed; the newer workflow run will build MRS.'
+              echo 'valid=false' >> "${GITHUB_OUTPUT}"
+              exit 0
+            fi
+            git merge --ff-only origin/master
+          fi
+          echo 'valid=true' >> "${GITHUB_OUTPUT}"
+
       - name: Convert and validate domain rules
+        if: steps.current.outputs.valid == 'true'
         shell: bash
         run: |
           log="$("${RUNNER_TEMP}/mihomo" convert-ruleset domain yaml \
@@ -60,8 +174,47 @@ jobs:
           "${RUNNER_TEMP}/mihomo" convert-ruleset domain mrs \
             Clash/gambino-proxy.mrs "${RUNNER_TEMP}/gambino-proxy.txt"
 
+          python - <<'PY'
+          import os
+          from itertools import pairwise
+          from pathlib import Path
+          import yaml
+
+          loader = getattr(yaml, 'CSafeLoader', yaml.SafeLoader)
+          source_rules = yaml.load(Path('Clash/gambino-proxy.yaml').read_text(encoding='utf-8'), Loader=loader)['payload']
+          mrs_rules = (Path(os.environ['RUNNER_TEMP']) / 'gambino-proxy.txt').read_text(encoding='utf-8').splitlines()
+
+          def check_order(rules, label):
+              if not rules:
+                  raise SystemExit(f'{label} contains no domain rules.')
+              for previous, current in pairwise(rules):
+                  if current == previous:
+                      raise SystemExit(f'Exact duplicate in {label}: {current}')
+                  if current < previous:
+                      raise SystemExit(f'{label} is not sorted A to Z.')
+
+          check_order(source_rules, 'source YAML')
+          check_order(mrs_rules, 'MRS domain export')
+
+          # Mihomo merges "domain" + ".domain" into "+.domain" and lowercases
+          # domain names. Compare their component patterns to detect rule loss.
+          def patterns(rules):
+              result = set()
+              for rule in rules:
+                  rule = rule.lower()
+                  if rule.startswith('+.'):
+                      result.update((rule[2:], rule[1:]))
+                  else:
+                      result.add(rule)
+              return result
+
+          if patterns(source_rules) != patterns(mrs_rules):
+              raise SystemExit('MRS domain coverage differs from the source YAML.')
+          print(f'Validated {len(source_rules)} unique YAML rules and {len(mrs_rules)} sorted, unique MRS rules.')
+          PY
+
       - name: Commit updated MRS
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && steps.current.outputs.valid == 'true'
         shell: bash
         run: |
           git add -- Clash/gambino-proxy.mrs
