@@ -454,7 +454,7 @@ jobs:
               if networks and network.version == networks[-1].version and network.subnet_of(networks[-1]):
                   continue
               networks.append(network)
-          networks.sort(key=lambda n: (n.version, int(n.network_address), n.prefixlen), reverse=True)
+          networks.sort(key=lambda n: (n.version, int(n.network_address), n.prefixlen))
           if ranges(original) != ranges(networks):
               raise ValueError('CIDR reduction changed address coverage')
           rendered = ('payload:\n' + ''.join(f'  - {n}\n' for n in networks)).encode()
