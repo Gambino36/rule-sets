@@ -1,9 +1,6 @@
-name: Компиляция MRS
+name: Сортировка и компиляция gambino-proxy
 
 on:
-  # 00:20 UTC = 05:20 Asia/Yekaterinburg; the Telegram gate selects every third day.
-  schedule:
-    - cron: '20 0 * * *'
   push:
     branches: [master]
     paths:
@@ -26,14 +23,13 @@ jobs:
     timeout-minutes: 5
     outputs:
       proxy: ${{ steps.route.outputs.proxy }}
-      telegram: ${{ steps.route.outputs.telegram }}
     steps:
       - name: Check out event history
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Select independent rule updates
+      - name: Check whether proxy YAML changed
         id: route
         shell: bash
         run: |
@@ -42,7 +38,6 @@ jobs:
           import os
           import re
           import subprocess
-          from datetime import datetime, timezone
 
           def git(*args):
               return subprocess.check_output(['git', *args], text=True).strip()
@@ -51,7 +46,6 @@ jobs:
           with open(os.environ['GITHUB_EVENT_PATH'], encoding='utf-8') as source:
               event = json.load(source)
           proxy = False
-          telegram = event_name == 'workflow_dispatch'
           path = 'Mihomo/gambino-proxy.yaml'
           if event_name in ('push', 'pull_request'):
               if event_name == 'push':
@@ -69,27 +63,28 @@ jobs:
                   raise SystemExit('Could not compare proxy YAML revisions')
               proxy = status == 1
           elif event_name == 'workflow_dispatch':
-              history = git('log', '-1', '--format=%B', '--extended-regexp',
+              history = git('log', '-1', '--format=%H%n%B', '--extended-regexp',
                             '--grep=^Proxy-Source: [0-9a-f]{40,64}$')
               previous = re.search(r'^Proxy-Source: ([0-9a-f]{40,64})$', history, re.MULTILINE)
               if previous:
                   validated = previous[1]
+                  recorded = git('rev-parse', f'{history.splitlines()[0]}:{path}')
+                  if recorded != validated:
+                      raise SystemExit('The recorded proxy source does not match its validated revision')
               else:
                   commit = git('log', '-1', '--format=%H', '--', 'Mihomo/gambino-proxy.mrs')
                   validated = git('rev-parse', f'{commit}:{path}') if commit else ''
               proxy = git('rev-parse', f'HEAD:{path}') != validated
-          elif event_name == 'schedule':
-              epoch_day = int(datetime.now(timezone.utc).timestamp()) // 86400
-              telegram = (epoch_day - 20729) % 3 == 0
           with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
-              output.write(f'proxy={str(proxy).lower()}\ntelegram={str(telegram).lower()}\n')
-          print(f'Proxy YAML changed: {proxy}; Telegram source check due: {telegram}.')
+              output.write(f'proxy={str(proxy).lower()}\n')
+          print(f'Proxy YAML changed: {proxy}.')
           PY
 
   convert:
     needs: route
     if: needs.route.outputs.proxy == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     concurrency:
       group: proxy-mrs-${{ github.ref }}
       # Only a newer proxy YAML update restarts this five-minute window.
@@ -100,15 +95,11 @@ jobs:
       MIHOMO_VERSION: v1.19.32
       MIHOMO_SHA256: 306f81e723e60ce6b828899a6fe83e1d00e9ecefb2dc8d4d849312a5bc00efdc
     steps:
-      - name: Set five-minute conversion deadline
-        id: delay
-        shell: bash
-        run: echo "deadline=$(( $(date +%s) + 300 ))" >> "${GITHUB_OUTPUT}"
-
       - name: Check out rules
         uses: actions/checkout@v4
         with:
           ref: ${{ github.ref }}
+          fetch-depth: 0
 
       - name: Set up Python and cache pip packages
         uses: actions/setup-python@v5
@@ -165,12 +156,17 @@ jobs:
             exit 0
           fi
           base="$(git rev-parse HEAD)"
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git config user.name 'Gambino36'
+          git config user.email '161187558+Gambino36@users.noreply.github.com'
           git commit -m "Deduplicate and sort proxy domain rules"
           # GITHUB_TOKEN commits do not trigger another workflow run.
-          for attempt in 1 2 3; do
+          for attempt in {1..10}; do
             git fetch origin master
+            # A failed push response can still mean the server accepted our commit.
+            if git merge-base --is-ancestor HEAD origin/master; then
+              git merge --ff-only origin/master
+              exit 0
+            fi
             if ! git diff --quiet "${base}" origin/master -- Mihomo/gambino-proxy.yaml; then
               echo '::error::Proxy YAML changed during cleanup; the newer update will build it.'
               exit 1
@@ -180,8 +176,13 @@ jobs:
               exit 0
             fi
           done
-          echo '::error::Could not publish proxy cleanup after three attempts.'
+          echo '::error::Could not publish proxy cleanup after ten attempts.'
           exit 1
+
+      - name: Start five-minute wait after the sorted YAML is saved
+        id: delay
+        shell: bash
+        run: echo "deadline=$(( $(date +%s) + 300 ))" >> "${GITHUB_OUTPUT}"
 
       - name: Restore cached mihomo archive
         id: mihomo-cache
@@ -302,11 +303,15 @@ jobs:
           git add -- Mihomo/gambino-proxy.mrs
           base="$(git rev-parse HEAD)"
           source_blob="$(git rev-parse HEAD:Mihomo/gambino-proxy.yaml)"
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git config user.name 'Gambino36'
+          git config user.email '161187558+Gambino36@users.noreply.github.com'
           git commit --allow-empty -m "Update gambino-proxy.mrs" -m "Proxy-Source: ${source_blob}"
-          for attempt in 1 2 3; do
+          for attempt in {1..10}; do
             git fetch origin master
+            if git merge-base --is-ancestor HEAD origin/master; then
+              git merge --ff-only origin/master
+              exit 0
+            fi
             if ! git diff --quiet "${base}" origin/master -- \
               Mihomo/gambino-proxy.yaml Mihomo/gambino-proxy.mrs; then
               echo '::error::Proxy files changed during compilation; the newer update will build them.'
@@ -317,208 +322,5 @@ jobs:
               exit 0
             fi
           done
-          echo '::error::Could not publish proxy MRS after three attempts.'
-          exit 1
-
-  telegram:
-    needs: route
-    if: needs.route.outputs.telegram == 'true'
-    runs-on: ubuntu-latest
-    concurrency:
-      group: telegram-ip-${{ github.ref }}
-      cancel-in-progress: false
-    timeout-minutes: 15
-    permissions:
-      contents: write
-    env:
-      MIHOMO_VERSION: v1.19.32
-      MIHOMO_SHA256: 306f81e723e60ce6b828899a6fe83e1d00e9ecefb2dc8d4d849312a5bc00efdc
-    steps:
-      - name: Check out rules and source fingerprints
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up Python for Telegram
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install YAML parser for Telegram
-        run: python -m pip install --disable-pip-version-check 'PyYAML==6.0.3'
-
-      - name: Check sources and compile changed Telegram rules
-        id: telegram
-        shell: bash
-        run: |
-          python - <<'PY'
-          import gzip
-          import hashlib
-          import ipaddress as ip
-          import os
-          import re
-          import subprocess
-          import time
-          from concurrent.futures import ThreadPoolExecutor
-          from pathlib import Path
-          from urllib.request import Request, urlopen
-          import yaml
-
-          urls = (
-              'https://raw.githubusercontent.com/666OS/rules/release/mihomo/ip/Telegram.txt',
-              'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/telegram.list',
-              'https://raw.githubusercontent.com/Davoyan/mihomo-rule-sets/main/domains/additional-telegram-ips.yaml',
-          )
-          sha = lambda data: hashlib.sha256(data).hexdigest()
-
-          def fetch(url, limit=2 * 1024 * 1024):
-              for attempt in range(3):
-                  try:
-                      with urlopen(Request(url, headers={'User-Agent': 'Telegram-IP-updater'}), timeout=30) as response:
-                          if response.status != 200:
-                              raise ValueError(f'Unexpected HTTP status for {url}: {response.status}')
-                          data = response.read(limit + 1)
-                      if not data or len(data) > limit:
-                          raise ValueError(f'Empty or oversized source: {url}')
-                      return data
-                  except OSError:
-                      if attempt == 2:
-                          raise
-                      time.sleep(attempt + 1)
-
-          class Loader(yaml.SafeLoader):
-              pass
-
-          def mapping(loader, node):
-              result = {}
-              for key_node, value_node in node.value:
-                  key = loader.construct_object(key_node)
-                  if key in result:
-                      raise ValueError(f'Duplicate YAML key: {key!r}')
-                  result[key] = loader.construct_object(value_node)
-              return result
-
-          Loader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, mapping)
-
-          def parse(data, is_yaml=False):
-              text = data.decode('utf-8-sig')
-              if is_yaml:
-                  document = yaml.load(text, Loader=Loader)
-                  if not isinstance(document, dict) or set(document) != {'payload'}:
-                      raise ValueError('Expected a YAML payload mapping')
-                  rules = document['payload']
-              else:
-                  rules = [line for line in text.splitlines() if line.partition('#')[0].strip()]
-              if not isinstance(rules, list) or not rules:
-                  raise ValueError('Expected a non-empty rule list')
-              networks = []
-              for rule in rules:
-                  if not isinstance(rule, str):
-                      raise ValueError(f'Expected a string CIDR: {rule!r}')
-                  cidr = rule.partition('#')[0].strip()
-                  match = re.fullmatch(r'(IP-CIDR6|IP-CIDR)[:,](.+)', cidr)
-                  if match:
-                      fields = match[2].split(',')
-                      if len(fields) > 2 or (len(fields) == 2 and fields[1].strip() != 'no-resolve'):
-                          raise ValueError(f'Unsupported IP rule fields: {rule!r}')
-                      cidr = fields[0].strip()
-                  if '/' not in cidr:
-                      raise ValueError(f'Expected a CIDR: {rule!r}')
-                  network = ip.ip_network(cidr, strict=False)
-                  if match and match[1] == 'IP-CIDR6' and network.version != 6:
-                      raise ValueError(f'IP-CIDR6 requires IPv6: {rule!r}')
-                  networks.append(network)
-              return networks
-
-          def ranges(networks):
-              result = []
-              for family in (4, 6):
-                  merged = []
-                  for start, end in sorted((int(n.network_address), int(n.broadcast_address))
-                                           for n in networks if n.version == family):
-                      if merged and start <= merged[-1][1] + 1:
-                          merged[-1] = (merged[-1][0], max(end, merged[-1][1]))
-                      else:
-                          merged.append((start, end))
-                  result.extend((family, start, end) for start, end in merged)
-              return result
-
-          with ThreadPoolExecutor(max_workers=3) as pool:
-              sources = list(pool.map(fetch, urls))
-          fingerprint = sha('\n'.join(f'{url} {sha(data)}' for url, data in zip(urls, sources)).encode())
-          original = [n for url, data in zip(urls, sources) for n in parse(data, url.endswith('.yaml'))]
-          # CIDRs overlap only by containment. Retain the widest source prefix;
-          # adjacent source networks remain separate, without inventing a parent.
-          networks = []
-          for network in sorted(set(original), key=lambda n: (n.version, int(n.network_address), n.prefixlen)):
-              if networks and network.version == networks[-1].version and network.subnet_of(networks[-1]):
-                  continue
-              networks.append(network)
-          networks.sort(key=lambda n: (n.version, int(n.network_address), n.prefixlen))
-          if ranges(original) != ranges(networks):
-              raise ValueError('CIDR reduction changed address coverage')
-          rendered = ('payload:\n' + ''.join(f'  - {n}\n' for n in networks)).encode()
-          if parse(rendered, True) != networks:
-              raise ValueError('Generated YAML did not preserve CIDRs')
-          history = subprocess.check_output(
-              ['git', 'log', '-1', '--format=%H%n%B', '--extended-regexp',
-               '--grep=^Telegram-Sources: [0-9a-f]{64}$'], text=True)
-          previous = re.search(r'^Telegram-Sources: ([0-9a-f]{64})$', history, re.MULTILINE)
-          changed = previous is None or previous[1] != fingerprint
-          tracked_yaml, tracked_mrs = Path('Mihomo/telegram-ip.yaml'), Path('Mihomo/telegram-ip.mrs')
-          if not changed:
-              validated_mrs = subprocess.check_output(['git', 'show', f'{history.splitlines()[0]}:Mihomo/telegram-ip.mrs'])
-              if tracked_yaml.read_bytes() != rendered or not validated_mrs or tracked_mrs.read_bytes() != validated_mrs:
-                  raise ValueError('Current Telegram files do not match the unchanged sources')
-              print('All sources are unchanged; compilation skipped.')
-          else:
-              work = Path(os.environ['RUNNER_TEMP'])
-              version = os.environ['MIHOMO_VERSION']
-              archive = fetch(f'https://github.com/MetaCubeX/mihomo/releases/download/{version}/'
-                              f'mihomo-linux-amd64-v1-{version}.gz', 64 * 1024 * 1024)
-              if sha(archive) != os.environ['MIHOMO_SHA256']:
-                  raise ValueError('Mihomo archive checksum mismatch')
-              binary = work / 'telegram-mihomo'
-              binary.write_bytes(gzip.decompress(archive))
-              binary.chmod(0o755)
-              source, compiled, exported = (work / f'telegram-ip.{ext}' for ext in ('yaml', 'mrs', 'txt'))
-              source.write_bytes(rendered)
-              for input_format, input_file, output_file in (('yaml', source, compiled), ('mrs', compiled, exported)):
-                  subprocess.run([str(binary), 'convert-ruleset', 'ipcidr', input_format,
-                                  str(input_file), str(output_file)], check=True, timeout=60)
-              if not compiled.is_file() or not compiled.stat().st_size or ranges(parse(exported.read_bytes())) != ranges(networks):
-                  raise ValueError('Compiled MRS address coverage differs from the YAML')
-              tracked_yaml.write_bytes(rendered)
-              tracked_mrs.write_bytes(compiled.read_bytes())
-              print(f'Validated {len(original)} source entries and {len(networks)} unique non-overlapping CIDRs.')
-          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
-              output.write(f'changed={str(changed).lower()}\nfingerprint={fingerprint}\n')
-          PY
-
-      - name: Publish Telegram rules as Gambino36
-        if: steps.telegram.outputs.changed == 'true' && github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
-        shell: bash
-        env:
-          SOURCE_FINGERPRINT: ${{ steps.telegram.outputs.fingerprint }}
-        run: |
-          base="$(git rev-parse HEAD)"
-          git add -- Mihomo/telegram-ip.yaml Mihomo/telegram-ip.mrs
-          git config user.name 'Gambino36'
-          git config user.email '161187558+Gambino36@users.noreply.github.com'
-          # Record raw-source changes even if they produce identical rule files.
-          git commit --allow-empty -m 'Update Telegram IP rules and MRS' \
-            -m "Telegram-Sources: ${SOURCE_FINGERPRINT}"
-          for attempt in 1 2 3; do
-            git fetch origin master
-            if ! git diff --quiet "${base}" origin/master -- \
-              Mihomo/telegram-ip.yaml Mihomo/telegram-ip.mrs; then
-              echo '::error::Telegram files changed during compilation; rerun against the current revision.'
-              exit 1
-            fi
-            git rebase origin/master
-            if git push origin HEAD:master; then
-              exit 0
-            fi
-          done
-          echo '::error::Could not publish Telegram rules after three attempts.'
+          echo '::error::Could not publish proxy MRS after ten attempts.'
           exit 1
