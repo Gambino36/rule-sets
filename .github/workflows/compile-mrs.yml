@@ -1,16 +1,16 @@
-name: Update proxy MRS
+name: Компиляция MRS
 
 on:
   push:
     branches: [master]
     paths:
-      - Clash/gambino-proxy.yaml
-      - .github/workflows/update-proxy-mrs.yml
+      - Mihomo/gambino-proxy.yaml
+      - .github/workflows/compile-mrs.yml
   pull_request:
     branches: [master]
     paths:
-      - Clash/gambino-proxy.yaml
-      - .github/workflows/update-proxy-mrs.yml
+      - Mihomo/gambino-proxy.yaml
+      - .github/workflows/compile-mrs.yml
   workflow_dispatch:
 
 permissions:
@@ -47,7 +47,7 @@ jobs:
           python-version: '3.12'
           cache: pip
           # Hash the pinned dependency in this workflow; no requirements file needed.
-          cache-dependency-path: .github/workflows/update-proxy-mrs.yml
+          cache-dependency-path: .github/workflows/compile-mrs.yml
 
       - name: Install YAML parser
         run: python -m pip install --disable-pip-version-check 'PyYAML==6.0.3'
@@ -59,7 +59,7 @@ jobs:
           from pathlib import Path
           import yaml
 
-          source = Path('Clash/gambino-proxy.yaml')
+          source = Path('Mihomo/gambino-proxy.yaml')
           loader = getattr(yaml, 'CSafeLoader', yaml.SafeLoader)
           data = yaml.load(source.read_text(encoding='utf-8'), Loader=loader)
           if not isinstance(data, dict) or not isinstance(data.get('payload'), list):
@@ -91,8 +91,8 @@ jobs:
         if: github.event_name != 'pull_request'
         shell: bash
         run: |
-          git add -- Clash/gambino-proxy.yaml
-          if git diff --cached --quiet -- Clash/gambino-proxy.yaml; then
+          git add -- Mihomo/gambino-proxy.yaml
+          if git diff --cached --quiet -- Mihomo/gambino-proxy.yaml; then
             exit 0
           fi
           git config user.name 'github-actions[bot]'
@@ -151,7 +151,7 @@ jobs:
           if [[ "${GITHUB_EVENT_NAME}" != 'pull_request' ]]; then
             git fetch origin master
             if ! git diff --quiet HEAD origin/master -- \
-              Clash/gambino-proxy.yaml .github/workflows/update-proxy-mrs.yml; then
+              Mihomo/gambino-proxy.yaml .github/workflows/compile-mrs.yml; then
               echo 'Source changed; the newer workflow run will build MRS.'
               echo 'valid=false' >> "${GITHUB_OUTPUT}"
               exit 0
@@ -165,14 +165,14 @@ jobs:
         shell: bash
         run: |
           log="$("${RUNNER_TEMP}/mihomo" convert-ruleset domain yaml \
-            Clash/gambino-proxy.yaml Clash/gambino-proxy.mrs 2>&1)"
+            Mihomo/gambino-proxy.yaml Mihomo/gambino-proxy.mrs 2>&1)"
           printf '%s\n' "${log}"
           if [[ "${log}" == *"skip invalid domain"* ]]; then
             echo "::error::The YAML contains invalid domain rules; MRS was not published."
             exit 1
           fi
           "${RUNNER_TEMP}/mihomo" convert-ruleset domain mrs \
-            Clash/gambino-proxy.mrs "${RUNNER_TEMP}/gambino-proxy.txt"
+            Mihomo/gambino-proxy.mrs "${RUNNER_TEMP}/gambino-proxy.txt"
 
           python - <<'PY'
           import os
@@ -181,7 +181,7 @@ jobs:
           import yaml
 
           loader = getattr(yaml, 'CSafeLoader', yaml.SafeLoader)
-          source_rules = yaml.load(Path('Clash/gambino-proxy.yaml').read_text(encoding='utf-8'), Loader=loader)['payload']
+          source_rules = yaml.load(Path('Mihomo/gambino-proxy.yaml').read_text(encoding='utf-8'), Loader=loader)['payload']
           mrs_rules = (Path(os.environ['RUNNER_TEMP']) / 'gambino-proxy.txt').read_text(encoding='utf-8').splitlines()
 
           def check_order(rules, label):
@@ -217,8 +217,8 @@ jobs:
         if: github.event_name != 'pull_request' && steps.current.outputs.valid == 'true'
         shell: bash
         run: |
-          git add -- Clash/gambino-proxy.mrs
-          if git diff --cached --quiet -- Clash/gambino-proxy.mrs; then
+          git add -- Mihomo/gambino-proxy.mrs
+          if git diff --cached --quiet -- Mihomo/gambino-proxy.mrs; then
             echo "MRS is already up to date."
             exit 0
           fi
