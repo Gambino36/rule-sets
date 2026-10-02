@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: telegram-ip-${{ github.ref }}
+  group: telegram-ips-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -87,7 +87,7 @@ jobs:
           def fetch(url, limit=2 * 1024 * 1024):
               for attempt in range(3):
                   try:
-                      with urlopen(Request(url, headers={'User-Agent': 'Telegram-IP-updater'}), timeout=30) as response:
+                      with urlopen(Request(url, headers={'User-Agent': 'Telegram-IPs-updater'}), timeout=30) as response:
                           if response.status != 200:
                               raise ValueError(f'Unexpected HTTP status for {url}: {response.status}')
                           data = response.read(limit + 1)
@@ -180,7 +180,7 @@ jobs:
                '--grep=^Telegram-Sources: [0-9a-f]{64}$'], text=True)
           previous = re.search(r'^Telegram-Sources: ([0-9a-f]{64})$', history, re.MULTILINE)
           sources_changed = previous is None or previous[1] != fingerprint
-          tracked_yaml, tracked_mrs = Path('Mihomo/telegram-ip.yaml'), Path('Mihomo/telegram-ip.mrs')
+          tracked_yaml, tracked_mrs = Path('Mihomo/telegram-ips.yaml'), Path('Mihomo/telegram-ips.mrs')
           existing_yaml = tracked_yaml.read_bytes() if tracked_yaml.is_file() else b''
           existing_mrs = tracked_mrs.read_bytes() if tracked_mrs.is_file() else b''
           try:
@@ -199,8 +199,8 @@ jobs:
           if previous:
               validated_commit = history.splitlines()[0]
               try:
-                  validated_mrs = subprocess.check_output(['git', 'show', f'{validated_commit}:Mihomo/telegram-ip.mrs'])
-                  validated_yaml = subprocess.check_output(['git', 'show', f'{validated_commit}:Mihomo/telegram-ip.yaml'])
+                  validated_mrs = subprocess.check_output(['git', 'show', f'{validated_commit}:Mihomo/telegram-ips.mrs'])
+                  validated_yaml = subprocess.check_output(['git', 'show', f'{validated_commit}:Mihomo/telegram-ips.yaml'])
                   validated_coverage = ranges(parse(validated_yaml, True))
               except (subprocess.CalledProcessError, ValueError, TypeError, UnicodeError, yaml.YAMLError):
                   validated_mrs = b''
@@ -226,7 +226,7 @@ jobs:
               binary = work / 'telegram-mihomo'
               binary.write_bytes(gzip.decompress(archive))
               binary.chmod(0o755)
-              source, compiled, exported = (work / f'telegram-ip.{ext}' for ext in ('yaml', 'mrs', 'txt'))
+              source, compiled, exported = (work / f'telegram-ips.{ext}' for ext in ('yaml', 'mrs', 'txt'))
               source.write_bytes(rendered)
               for input_format, input_file, output_file in (('yaml', source, compiled), ('mrs', compiled, exported)):
                   subprocess.run([str(binary), 'convert-ruleset', 'ipcidr', input_format,
@@ -259,10 +259,10 @@ jobs:
           GIT_COMMITTER_EMAIL: 161187558+Gambino36@users.noreply.github.com
         run: |
           base="$(git rev-parse HEAD)"
-          git add -- Mihomo/telegram-ip.yaml Mihomo/telegram-ip.mrs
+          git add -- Mihomo/telegram-ips.yaml Mihomo/telegram-ips.mrs
           while IFS= read -r path; do
             case "${path}" in
-              Mihomo/telegram-ip.yaml|Mihomo/telegram-ip.mrs) ;;
+              Mihomo/telegram-ips.yaml|Mihomo/telegram-ips.mrs) ;;
               *) echo "::error::Unexpected staged file: ${path}"; exit 1 ;;
             esac
           done < <(git diff --cached --name-only)
@@ -280,7 +280,7 @@ jobs:
               exit 0
             fi
             if ! git diff --quiet "${base}" origin/master -- \
-              Mihomo/telegram-ip.yaml Mihomo/telegram-ip.mrs; then
+              Mihomo/telegram-ips.yaml Mihomo/telegram-ips.mrs; then
               echo '::error::Telegram files changed during validation; rerun against the current revision.'
               exit 1
             fi

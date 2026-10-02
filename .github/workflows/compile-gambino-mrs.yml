@@ -5,12 +5,12 @@ on:
     branches: [master]
     paths:
       - Mihomo/gambino-proxy.yaml
-      - .github/workflows/compile-mrs.yml
+      - .github/workflows/compile-gambino-mrs.yml
   pull_request:
     branches: [master]
     paths:
       - Mihomo/gambino-proxy.yaml
-      - .github/workflows/compile-mrs.yml
+      - .github/workflows/compile-gambino-mrs.yml
   workflow_dispatch:
 
 permissions:
@@ -107,7 +107,7 @@ jobs:
           python-version: '3.12'
           cache: pip
           # Hash the pinned dependency in this workflow; no requirements file needed.
-          cache-dependency-path: .github/workflows/compile-mrs.yml
+          cache-dependency-path: .github/workflows/compile-gambino-mrs.yml
 
       - name: Install YAML parser
         run: python -m pip install --disable-pip-version-check 'PyYAML==6.0.3'
