@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "compiler": "Mihomo v1.19.32",
+  "sources": [
+    {
+      "name": "666OS.txt",
+      "url": "https://raw.githubusercontent.com/666OS/rules/release/mihomo/ip/Telegram.txt",
+      "sha256": "2f9ab03675b64d478f53a6db7929487fb3f09c87387f5bfaccba3645876a5320"
+    },
+    {
+      "name": "metacubex.list",
+      "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/telegram.list",
+      "sha256": "b0a0a5a4280f2c713a26bf1763317be5aefeda02e4e78dab7c2efbda02663181"
+    },
+    {
+      "name": "davoyan.yaml",
+      "url": "https://raw.githubusercontent.com/Davoyan/mihomo-rule-sets/main/domains/additional-telegram-ips.yaml",
+      "sha256": "d686c1ab2fa71fc5cda17438a723afa2866ef66ce7f6bb735a336336a6b8a8fd"
+    }
+  ],
+  "outputs": {
+    "Mihomo/telegram-ip.yaml": "3ce463469eeea9026161ff2a2c166ea917c9a42f88b7b304328736d5d28b07ac",
+    "Mihomo/telegram-ip.mrs": "a001e8e5039d966d28cdadabde11ad05251435767807bf0164bd4022a40235bc"
+  },
+  "networks": {
+    "ipv4": 350,
+    "ipv6": 6
+  }
+}

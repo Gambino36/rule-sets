@@ -1,0 +1,132 @@
+name: Обновление Telegram IP
+
+on:
+  # GitHub cron is UTC: 00:20 UTC = 05:20 Asia/Yekaterinburg.
+  # A daily gate below selects every third epoch day, across month boundaries.
+  schedule:
+    - cron: '20 0 * * *'
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - scripts/update_telegram_ip.py
+      - tests/test_telegram_ip.py
+      - .github/workflows/update-telegram-ip.yml
+  pull_request:
+    branches: [master]
+    paths:
+      - scripts/update_telegram_ip.py
+      - tests/test_telegram_ip.py
+      - .github/workflows/update-telegram-ip.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: telegram-ip-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cadence:
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      due: ${{ steps.gate.outputs.due }}
+    steps:
+      - name: Select every third day
+        id: gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          # 20729 is 2026-10-03, the first scheduled check.
+          if [[ "${GITHUB_EVENT_NAME}" == 'schedule' ]]; then
+            epoch_day=$(( $(date -u +%s) / 86400 ))
+            if (( (epoch_day - 20729) % 3 != 0 )); then
+              echo 'due=false' >> "${GITHUB_OUTPUT}"
+              echo 'The next Telegram IP check runs on the next selected third day.'
+              exit 0
+            fi
+          fi
+          echo 'due=true' >> "${GITHUB_OUTPUT}"
+
+  update:
+    needs: cadence
+    if: needs.cadence.outputs.due == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      MIHOMO_VERSION: v1.19.32
+      MIHOMO_SHA256: 306f81e723e60ce6b828899a6fe83e1d00e9ecefb2dc8d4d849312a5bc00efdc
+    steps:
+      - name: Check out rules
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install YAML parser
+        run: python -m pip install --disable-pip-version-check 'PyYAML==6.0.3'
+
+      - name: Test Telegram IP updater
+        run: python -m unittest discover -s tests -p 'test_telegram_ip.py'
+
+      - name: Check original sources and validate current rules
+        id: check
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/update_telegram_ip.py check \
+            --snapshot-dir "${RUNNER_TEMP}/telegram-ip-sources" \
+            --github-output "${GITHUB_OUTPUT}"
+
+      - name: Prepare verified mihomo only when a source changed
+        if: steps.check.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="${RUNNER_TEMP}/telegram-ip-mihomo.gz"
+          curl --fail --location --retry 3 --connect-timeout 15 --max-time 120 \
+            "https://github.com/MetaCubeX/mihomo/releases/download/${MIHOMO_VERSION}/mihomo-linux-amd64-v1-${MIHOMO_VERSION}.gz" \
+            --output "${archive}"
+          printf '%s  %s\n' "${MIHOMO_SHA256}" "${archive}" | sha256sum --check
+          gzip --decompress --stdout "${archive}" > "${RUNNER_TEMP}/telegram-ip-mihomo"
+          chmod +x "${RUNNER_TEMP}/telegram-ip-mihomo"
+
+      - name: Compile and validate changed Telegram IP rules
+        if: steps.check.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/update_telegram_ip.py build \
+            --snapshot-dir "${RUNNER_TEMP}/telegram-ip-sources" \
+            --mihomo "${RUNNER_TEMP}/telegram-ip-mihomo"
+
+      - name: Publish current rules as Gambino36
+        if: steps.check.outputs.changed == 'true' && github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+        shell: bash
+        run: |
+          set -euo pipefail
+          remote_head="$(git ls-remote --exit-code origin refs/heads/master | cut -f1)"
+          if [[ "${remote_head}" != "$(git rev-parse HEAD)" ]]; then
+            echo '::error::Remote master advanced after checkout; these files were not published. Run the workflow again to use the current revision.'
+            exit 1
+          fi
+          git add -- Mihomo/telegram-ip.yaml Mihomo/telegram-ip.mrs .github/telegram-ip-sources.json
+          if git diff --cached --quiet; then
+            echo 'Telegram IP files are already up to date.'
+            exit 0
+          fi
+          git config user.name 'Gambino36'
+          git config user.email '161187558+Gambino36@users.noreply.github.com'
+          git commit -m 'Update Telegram IP rules and MRS'
+          # A normal push rejects any concurrent master change after the check.
+          git push origin HEAD:master
+
+      - name: Report unchanged source files
+        if: steps.check.outputs.changed == 'false'
+        run: echo 'All three original source files are unchanged; current YAML and MRS were validated without compilation.'
