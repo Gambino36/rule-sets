@@ -4,12 +4,12 @@ on:
   push:
     branches: [master]
     paths:
-      - Mihomo/gambino-proxy.yaml
+      - mihomo/gambino-proxy.yaml
       - .github/workflows/compile-gambino-mrs.yml
   pull_request:
     branches: [master]
     paths:
-      - Mihomo/gambino-proxy.yaml
+      - mihomo/gambino-proxy.yaml
       - .github/workflows/compile-gambino-mrs.yml
   workflow_dispatch:
 
@@ -46,7 +46,7 @@ jobs:
           with open(os.environ['GITHUB_EVENT_PATH'], encoding='utf-8') as source:
               event = json.load(source)
           proxy = False
-          path = 'Mihomo/gambino-proxy.yaml'
+          path = 'mihomo/gambino-proxy.yaml'
           if event_name in ('push', 'pull_request'):
               if event_name == 'push':
                   before, after = event['before'], event['after']
@@ -72,7 +72,7 @@ jobs:
                   if recorded != validated:
                       raise SystemExit('The recorded proxy source does not match its validated revision')
               else:
-                  commit = git('log', '-1', '--format=%H', '--', 'Mihomo/gambino-proxy.mrs')
+                  commit = git('log', '-1', '--format=%H', '--', 'mihomo/gambino-proxy.mrs')
                   validated = git('rev-parse', f'{commit}:{path}') if commit else ''
               proxy = git('rev-parse', f'HEAD:{path}') != validated
           with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
@@ -87,7 +87,6 @@ jobs:
     timeout-minutes: 20
     concurrency:
       group: proxy-mrs-${{ github.ref }}
-      # Only a newer proxy YAML update restarts this five-minute window.
       cancel-in-progress: true
     permissions:
       contents: write
@@ -106,7 +105,6 @@ jobs:
         with:
           python-version: '3.12'
           cache: pip
-          # Hash the pinned dependency in this workflow; no requirements file needed.
           cache-dependency-path: .github/workflows/compile-gambino-mrs.yml
 
       - name: Install YAML parser
@@ -119,7 +117,7 @@ jobs:
           from pathlib import Path
           import yaml
 
-          source = Path('Mihomo/gambino-proxy.yaml')
+          source = Path('mihomo/gambino-proxy.yaml')
           loader = getattr(yaml, 'CSafeLoader', yaml.SafeLoader)
           data = yaml.load(source.read_text(encoding='utf-8'), Loader=loader)
           if not isinstance(data, dict) or not isinstance(data.get('payload'), list):
@@ -131,7 +129,6 @@ jobs:
           ):
               raise SystemExit('Domain rules must be non-empty, single-line strings without surrounding whitespace.')
 
-          # Only equal strings are duplicates; parent and child domains remain.
           cleaned = sorted(set(rules))
           if rules != cleaned:
               class IndentedSafeDumper(yaml.SafeDumper):
@@ -151,23 +148,21 @@ jobs:
         if: github.event_name != 'pull_request'
         shell: bash
         run: |
-          git add -- Mihomo/gambino-proxy.yaml
-          if git diff --cached --quiet -- Mihomo/gambino-proxy.yaml; then
+          git add -- mihomo/gambino-proxy.yaml
+          if git diff --cached --quiet -- mihomo/gambino-proxy.yaml; then
             exit 0
           fi
           base="$(git rev-parse HEAD)"
           git config user.name 'Gambino36'
           git config user.email '161187558+Gambino36@users.noreply.github.com'
           git commit -m "Deduplicate and sort proxy domain rules"
-          # GITHUB_TOKEN commits do not trigger another workflow run.
           for attempt in {1..10}; do
             git fetch origin master
-            # A failed push response can still mean the server accepted our commit.
             if git merge-base --is-ancestor HEAD origin/master; then
               git merge --ff-only origin/master
               exit 0
             fi
-            if ! git diff --quiet "${base}" origin/master -- Mihomo/gambino-proxy.yaml; then
+            if ! git diff --quiet "${base}" origin/master -- mihomo/gambino-proxy.yaml; then
               echo '::error::Proxy YAML changed during cleanup; the newer update will build it.'
               exit 1
             fi
@@ -234,7 +229,7 @@ jobs:
           if [[ "${GITHUB_EVENT_NAME}" != 'pull_request' ]]; then
             git fetch origin master
             if ! git diff --quiet HEAD origin/master -- \
-              Mihomo/gambino-proxy.yaml; then
+              mihomo/gambino-proxy.yaml; then
               echo 'Source changed; the newer workflow run will build MRS.'
               echo 'valid=false' >> "${GITHUB_OUTPUT}"
               exit 0
@@ -248,14 +243,14 @@ jobs:
         shell: bash
         run: |
           log="$("${RUNNER_TEMP}/mihomo" convert-ruleset domain yaml \
-            Mihomo/gambino-proxy.yaml Mihomo/gambino-proxy.mrs 2>&1)"
+            mihomo/gambino-proxy.yaml mihomo/gambino-proxy.mrs 2>&1)"
           printf '%s\n' "${log}"
           if [[ "${log}" == *"skip invalid domain"* ]]; then
             echo "::error::The YAML contains invalid domain rules; MRS was not published."
             exit 1
           fi
           "${RUNNER_TEMP}/mihomo" convert-ruleset domain mrs \
-            Mihomo/gambino-proxy.mrs "${RUNNER_TEMP}/gambino-proxy.txt"
+            mihomo/gambino-proxy.mrs "${RUNNER_TEMP}/gambino-proxy.txt"
 
           python - <<'PY'
           import os
@@ -264,7 +259,7 @@ jobs:
           import yaml
 
           loader = getattr(yaml, 'CSafeLoader', yaml.SafeLoader)
-          source_rules = yaml.load(Path('Mihomo/gambino-proxy.yaml').read_text(encoding='utf-8'), Loader=loader)['payload']
+          source_rules = yaml.load(Path('mihomo/gambino-proxy.yaml').read_text(encoding='utf-8'), Loader=loader)['payload']
           mrs_rules = (Path(os.environ['RUNNER_TEMP']) / 'gambino-proxy.txt').read_text(encoding='utf-8').splitlines()
 
           def check_order(rules, label):
@@ -279,8 +274,6 @@ jobs:
           check_order(source_rules, 'source YAML')
           check_order(mrs_rules, 'MRS domain export')
 
-          # Mihomo merges "domain" + ".domain" into "+.domain" and lowercases
-          # domain names. Compare their component patterns to detect rule loss.
           def patterns(rules):
               result = set()
               for rule in rules:
@@ -300,9 +293,9 @@ jobs:
         if: github.event_name != 'pull_request' && steps.current.outputs.valid == 'true'
         shell: bash
         run: |
-          git add -- Mihomo/gambino-proxy.mrs
+          git add -- mihomo/gambino-proxy.mrs
           base="$(git rev-parse HEAD)"
-          source_blob="$(git rev-parse HEAD:Mihomo/gambino-proxy.yaml)"
+          source_blob="$(git rev-parse HEAD:mihomo/gambino-proxy.yaml)"
           git config user.name 'Gambino36'
           git config user.email '161187558+Gambino36@users.noreply.github.com'
           git commit --allow-empty -m "Update gambino-proxy.mrs" -m "Proxy-Source: ${source_blob}"
@@ -313,7 +306,7 @@ jobs:
               exit 0
             fi
             if ! git diff --quiet "${base}" origin/master -- \
-              Mihomo/gambino-proxy.yaml Mihomo/gambino-proxy.mrs; then
+              mihomo/gambino-proxy.yaml mihomo/gambino-proxy.mrs; then
               echo '::error::Proxy files changed during compilation; the newer update will build them.'
               exit 1
             fi
