@@ -1,6 +1,9 @@
 name: Компиляция MRS
 
 on:
+  # 00:20 UTC = 05:20 Asia/Yekaterinburg; the Telegram gate selects every third day.
+  schedule:
+    - cron: '20 0 * * *'
   push:
     branches: [master]
     paths:
@@ -23,7 +26,7 @@ concurrency:
 
 jobs:
   convert:
-    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/master'
+    if: github.event_name != 'schedule' && (github.event_name == 'pull_request' || github.ref == 'refs/heads/master')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -225,4 +228,204 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m "Update gambino-proxy.mrs"
+          git push origin HEAD:master
+
+  telegram:
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      MIHOMO_VERSION: v1.19.32
+      MIHOMO_SHA256: 306f81e723e60ce6b828899a6fe83e1d00e9ecefb2dc8d4d849312a5bc00efdc
+    steps:
+      - name: Select every third day for Telegram
+        id: gate
+        shell: bash
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == 'schedule' ]] && \
+            (( ( $(date -u +%s) / 86400 - 20729 ) % 3 != 0 )); then
+            echo 'due=false' >> "${GITHUB_OUTPUT}"
+          else
+            echo 'due=true' >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Check out rules and source fingerprints
+        if: steps.gate.outputs.due == 'true'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python for Telegram
+        if: steps.gate.outputs.due == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install YAML parser for Telegram
+        if: steps.gate.outputs.due == 'true'
+        run: python -m pip install --disable-pip-version-check 'PyYAML==6.0.3'
+
+      - name: Check sources and compile changed Telegram rules
+        if: steps.gate.outputs.due == 'true'
+        id: telegram
+        shell: bash
+        run: |
+          python - <<'PY'
+          import gzip
+          import hashlib
+          import ipaddress as ip
+          import os
+          import re
+          import subprocess
+          import time
+          from concurrent.futures import ThreadPoolExecutor
+          from pathlib import Path
+          from urllib.request import Request, urlopen
+          import yaml
+
+          urls = (
+              'https://raw.githubusercontent.com/666OS/rules/release/mihomo/ip/Telegram.txt',
+              'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/telegram.list',
+              'https://raw.githubusercontent.com/Davoyan/mihomo-rule-sets/main/domains/additional-telegram-ips.yaml',
+          )
+          sha = lambda data: hashlib.sha256(data).hexdigest()
+
+          def fetch(url, limit=2 * 1024 * 1024):
+              for attempt in range(3):
+                  try:
+                      with urlopen(Request(url, headers={'User-Agent': 'Telegram-IP-updater'}), timeout=30) as response:
+                          if response.status != 200:
+                              raise ValueError(f'Unexpected HTTP status for {url}: {response.status}')
+                          data = response.read(limit + 1)
+                      if not data or len(data) > limit:
+                          raise ValueError(f'Empty or oversized source: {url}')
+                      return data
+                  except OSError:
+                      if attempt == 2:
+                          raise
+                      time.sleep(attempt + 1)
+
+          class Loader(yaml.SafeLoader):
+              pass
+
+          def mapping(loader, node):
+              result = {}
+              for key_node, value_node in node.value:
+                  key = loader.construct_object(key_node)
+                  if key in result:
+                      raise ValueError(f'Duplicate YAML key: {key!r}')
+                  result[key] = loader.construct_object(value_node)
+              return result
+
+          Loader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, mapping)
+
+          def parse(data, is_yaml=False):
+              text = data.decode('utf-8-sig')
+              if is_yaml:
+                  document = yaml.load(text, Loader=Loader)
+                  if not isinstance(document, dict) or set(document) != {'payload'}:
+                      raise ValueError('Expected a YAML payload mapping')
+                  rules = document['payload']
+              else:
+                  rules = [line for line in text.splitlines() if line.partition('#')[0].strip()]
+              if not isinstance(rules, list) or not rules:
+                  raise ValueError('Expected a non-empty rule list')
+              networks = []
+              for rule in rules:
+                  if not isinstance(rule, str):
+                      raise ValueError(f'Expected a string CIDR: {rule!r}')
+                  cidr = rule.partition('#')[0].strip()
+                  match = re.fullmatch(r'(IP-CIDR6|IP-CIDR)[:,](.+)', cidr)
+                  if match:
+                      fields = match[2].split(',')
+                      if len(fields) > 2 or (len(fields) == 2 and fields[1].strip() != 'no-resolve'):
+                          raise ValueError(f'Unsupported IP rule fields: {rule!r}')
+                      cidr = fields[0].strip()
+                  if '/' not in cidr:
+                      raise ValueError(f'Expected a CIDR: {rule!r}')
+                  network = ip.ip_network(cidr, strict=False)
+                  if match and match[1] == 'IP-CIDR6' and network.version != 6:
+                      raise ValueError(f'IP-CIDR6 requires IPv6: {rule!r}')
+                  networks.append(network)
+              return networks
+
+          def ranges(networks):
+              result = []
+              for family in (4, 6):
+                  merged = []
+                  for start, end in sorted((int(n.network_address), int(n.broadcast_address))
+                                           for n in networks if n.version == family):
+                      if merged and start <= merged[-1][1] + 1:
+                          merged[-1] = (merged[-1][0], max(end, merged[-1][1]))
+                      else:
+                          merged.append((start, end))
+                  result.extend((family, start, end) for start, end in merged)
+              return result
+
+          with ThreadPoolExecutor(max_workers=3) as pool:
+              sources = list(pool.map(fetch, urls))
+          fingerprint = sha('\n'.join(f'{url} {sha(data)}' for url, data in zip(urls, sources)).encode())
+          original = [n for url, data in zip(urls, sources) for n in parse(data, url.endswith('.yaml'))]
+          networks = [n for family in (4, 6)
+                      for n in ip.collapse_addresses(n for n in original if n.version == family)]
+          networks.sort(key=lambda n: (n.version, int(n.network_address), n.prefixlen), reverse=True)
+          if ranges(original) != ranges(networks):
+              raise ValueError('CIDR reduction changed address coverage')
+          rendered = ('payload:\n' + ''.join(f'  - {n}\n' for n in networks)).encode()
+          if parse(rendered, True) != networks:
+              raise ValueError('Generated YAML did not preserve CIDRs')
+          history = subprocess.check_output(
+              ['git', 'log', '-1', '--format=%H%n%B', '--extended-regexp',
+               '--grep=^Telegram-Sources: [0-9a-f]{64}$'], text=True)
+          previous = re.search(r'^Telegram-Sources: ([0-9a-f]{64})$', history, re.MULTILINE)
+          changed = previous is None or previous[1] != fingerprint
+          tracked_yaml, tracked_mrs = Path('Mihomo/telegram-ip.yaml'), Path('Mihomo/telegram-ip.mrs')
+          if not changed:
+              validated_mrs = subprocess.check_output(['git', 'show', f'{history.splitlines()[0]}:Mihomo/telegram-ip.mrs'])
+              if tracked_yaml.read_bytes() != rendered or not validated_mrs or tracked_mrs.read_bytes() != validated_mrs:
+                  raise ValueError('Current Telegram files do not match the unchanged sources')
+              print('All sources are unchanged; compilation skipped.')
+          else:
+              work = Path(os.environ['RUNNER_TEMP'])
+              version = os.environ['MIHOMO_VERSION']
+              archive = fetch(f'https://github.com/MetaCubeX/mihomo/releases/download/{version}/'
+                              f'mihomo-linux-amd64-v1-{version}.gz', 64 * 1024 * 1024)
+              if sha(archive) != os.environ['MIHOMO_SHA256']:
+                  raise ValueError('Mihomo archive checksum mismatch')
+              binary = work / 'telegram-mihomo'
+              binary.write_bytes(gzip.decompress(archive))
+              binary.chmod(0o755)
+              source, compiled, exported = (work / f'telegram-ip.{ext}' for ext in ('yaml', 'mrs', 'txt'))
+              source.write_bytes(rendered)
+              for input_format, input_file, output_file in (('yaml', source, compiled), ('mrs', compiled, exported)):
+                  subprocess.run([str(binary), 'convert-ruleset', 'ipcidr', input_format,
+                                  str(input_file), str(output_file)], check=True, timeout=60)
+              if not compiled.is_file() or not compiled.stat().st_size or ranges(parse(exported.read_bytes())) != ranges(networks):
+                  raise ValueError('Compiled MRS address coverage differs from the YAML')
+              tracked_yaml.write_bytes(rendered)
+              tracked_mrs.write_bytes(compiled.read_bytes())
+              print(f'Validated {len(original)} source entries and {len(networks)} unique non-overlapping CIDRs.')
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              output.write(f'changed={str(changed).lower()}\nfingerprint={fingerprint}\n')
+          PY
+
+      - name: Publish Telegram rules as Gambino36
+        if: steps.telegram.outputs.changed == 'true' && github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+        shell: bash
+        env:
+          SOURCE_FINGERPRINT: ${{ steps.telegram.outputs.fingerprint }}
+        run: |
+          remote_head="$(git ls-remote --exit-code origin refs/heads/master | cut -f1)"
+          if [[ "${remote_head}" != "$(git rev-parse HEAD)" ]]; then
+            echo '::error::Master changed after checkout; rerun against the current revision.'
+            exit 1
+          fi
+          git add -- Mihomo/telegram-ip.yaml Mihomo/telegram-ip.mrs
+          git config user.name 'Gambino36'
+          git config user.email '161187558+Gambino36@users.noreply.github.com'
+          # Record raw-source changes even if they produce identical rule files.
+          git commit --allow-empty -m 'Update Telegram IP rules and MRS' \
+            -m "Telegram-Sources: ${SOURCE_FINGERPRINT}"
           git push origin HEAD:master
