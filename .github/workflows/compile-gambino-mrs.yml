@@ -110,27 +110,82 @@ jobs:
       - name: Install YAML parser
         run: python -m pip install --disable-pip-version-check 'PyYAML==6.0.3'
 
-      - name: Remove exact duplicates and sort source YAML
+      - name: Normalize domain syntax, remove exact duplicates and sort YAML
         shell: bash
         run: |
           python - <<'PY'
+          import ipaddress
+          import re
           from pathlib import Path
           import yaml
 
-          source = Path('mihomo/gambino-proxy.yaml')
-          loader = getattr(yaml, 'CSafeLoader', yaml.SafeLoader)
-          data = yaml.load(source.read_text(encoding='utf-8'), Loader=loader)
-          if not isinstance(data, dict) or not isinstance(data.get('payload'), list):
-              raise SystemExit('YAML must contain a payload list.')
-          rules = data['payload']
-          if not rules or any(
-              not isinstance(rule, str) or not rule or rule != rule.strip()
-              or '\n' in rule or '\r' in rule for rule in rules
-          ):
-              raise SystemExit('Domain rules must be non-empty, single-line strings without surrounding whitespace.')
+          class UniqueKeyLoader(yaml.SafeLoader):
+              def construct_mapping(self, node, deep=False):
+                  self.flatten_mapping(node)
+                  mapping = {}
+                  for key_node, value_node in node.value:
+                      key = self.construct_object(key_node, deep=deep)
+                      if key in mapping:
+                          raise ValueError(f'Duplicate YAML key: {key!r}')
+                      mapping[key] = self.construct_object(value_node, deep=deep)
+                  return mapping
 
-          cleaned = sorted(set(rules))
-          if rules != cleaned:
+          def normalize_domain(rule, shorthand=False):
+              if not isinstance(rule, str) or '\n' in rule or '\r' in rule:
+                  raise ValueError('Domain rules must be single-line strings.')
+              domain = rule.strip().lower().removesuffix('.')
+              labels = domain.split('.')
+              if labels[0] in ('', '+'):
+                  labels = labels[1:]
+              if not labels or len('.'.join(labels).encode('utf-8')) > 253 or any(
+                  not label or len(label.encode('utf-8')) > 63
+                  or (label != '*' and (
+                      not re.fullmatch(r'[\w-]+', label)
+                      or label.startswith('-') or label.endswith('-')
+                  )) for label in labels
+              ):
+                  raise ValueError(f'Invalid domain pattern: {rule!r}')
+              try:
+                  ipaddress.ip_address('.'.join(labels))
+              except ValueError:
+                  pass
+              else:
+                  raise ValueError(f'Expected a domain, not an IP address: {rule!r}')
+              if shorthand:
+                  if '.' not in domain:
+                      raise ValueError(f'Cannot repair an ambiguous standalone value: {rule!r}')
+                  if not domain.startswith(('+.', '.')) and '*' not in labels:
+                      domain = '+.' + domain
+              return domain
+
+          source = Path('mihomo/gambino-proxy.yaml')
+          original = source.read_text(encoding='utf-8-sig')
+          lines = []
+          in_payload = False
+          repaired = 0
+          for number, line in enumerate(original.splitlines(), 1):
+              value = line.strip()
+              if re.fullmatch(r'payload\s*:\s*(?:#.*)?', value):
+                  in_payload = True
+              elif in_payload and value and not value.startswith(('-', '#')):
+                  try:
+                      value = re.sub(r'\s+#.*$', '', value) if value.startswith('*.') else yaml.load(value, Loader=UniqueKeyLoader)
+                      domain = normalize_domain(value, shorthand=True)
+                  except (ValueError, TypeError, yaml.YAMLError) as error:
+                      raise SystemExit(f'{source}:{number}: {error}') from error
+                  line = '  ' + yaml.safe_dump([domain], allow_unicode=True, width=4096).rstrip('\n')
+                  repaired += 1
+              lines.append(line)
+
+          data = yaml.load('\n'.join(lines) + '\n', Loader=UniqueKeyLoader)
+          if not isinstance(data, dict) or set(data) != {'payload'} or not isinstance(data['payload'], list):
+              raise SystemExit('YAML must contain only a payload list.')
+          rules = data['payload']
+          if not rules:
+              raise SystemExit('The payload list must not be empty.')
+
+          cleaned = sorted({normalize_domain(rule) for rule in rules})
+          if repaired or rules != cleaned:
               class IndentedSafeDumper(yaml.SafeDumper):
                   def increase_indent(self, flow=False, indentless=False):
                       return super().increase_indent(flow, False)
@@ -141,10 +196,11 @@ jobs:
                             allow_unicode=True, default_flow_style=False),
                   encoding='utf-8',
               )
-          print(f'Removed {len(rules) - len(cleaned)} exact duplicate(s); sorted {len(cleaned)} rules A to Z.')
+          print(f'Repaired {repaired} standalone domain line(s); removed '
+                f'{len(rules) - len(cleaned)} exact duplicate(s); sorted {len(cleaned)} rules A to Z.')
           PY
 
-      - name: Save cleaned and sorted YAML immediately
+      - name: Save normalized and sorted YAML immediately
         if: github.event_name != 'pull_request'
         shell: bash
         run: |
@@ -155,7 +211,7 @@ jobs:
           base="$(git rev-parse HEAD)"
           git config user.name 'Gambino36'
           git config user.email '161187558+Gambino36@users.noreply.github.com'
-          git commit -m "Deduplicate and sort proxy domain rules"
+          git commit -m "Normalize, deduplicate and sort proxy domain rules"
           for attempt in {1..10}; do
             git fetch origin master
             if git merge-base --is-ancestor HEAD origin/master; then
