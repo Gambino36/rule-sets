@@ -1,6 +1,10 @@
 name: Обновление Telegram IP
 
 on:
+  push:
+    branches: [master]
+    paths:
+      - .github/workflows/update-telegram-ips.yml
   schedule:
     - cron: '0 2 * * *'
   workflow_dispatch:
