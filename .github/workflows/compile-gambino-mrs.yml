@@ -25,7 +25,7 @@ jobs:
       proxy: ${{ steps.route.outputs.proxy }}
     steps:
       - name: Check out event history
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -95,13 +95,13 @@ jobs:
       MIHOMO_SHA256: 306f81e723e60ce6b828899a6fe83e1d00e9ecefb2dc8d4d849312a5bc00efdc
     steps:
       - name: Check out rules
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ github.ref }}
           fetch-depth: 0
 
       - name: Set up Python and cache pip packages
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.12'
           cache: pip
@@ -213,18 +213,23 @@ jobs:
           git config user.email '161187558+Gambino36@users.noreply.github.com'
           git commit -m "Normalize, deduplicate and sort proxy domain rules"
           for attempt in {1..10}; do
-            git fetch origin master
-            if git merge-base --is-ancestor HEAD origin/master; then
-              git merge --ff-only origin/master
-              exit 0
+            if git fetch origin master; then
+              if git merge-base --is-ancestor HEAD origin/master; then
+                git merge --ff-only origin/master
+                exit 0
+              fi
+              if ! git diff --quiet "${base}" origin/master -- mihomo/gambino-proxy.yaml; then
+                echo '::error::Proxy YAML changed during cleanup; the newer update will build it.'
+                exit 1
+              fi
+              git rebase origin/master
+              if git push origin HEAD:master; then
+                exit 0
+              fi
             fi
-            if ! git diff --quiet "${base}" origin/master -- mihomo/gambino-proxy.yaml; then
-              echo '::error::Proxy YAML changed during cleanup; the newer update will build it.'
-              exit 1
-            fi
-            git rebase origin/master
-            if git push origin HEAD:master; then
-              exit 0
+            if (( attempt < 10 )); then
+              echo "Retrying proxy cleanup after a network failure (${attempt}/10)."
+              sleep "$(( attempt < 5 ? attempt : 5 ))"
             fi
           done
           echo '::error::Could not publish proxy cleanup after ten attempts.'
@@ -237,7 +242,7 @@ jobs:
 
       - name: Restore cached mihomo archive
         id: mihomo-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: ${{ runner.temp }}/mihomo.gz
           key: mihomo-${{ runner.os }}-${{ runner.arch }}-${{ env.MIHOMO_VERSION }}-${{ env.MIHOMO_SHA256 }}
@@ -252,7 +257,8 @@ jobs:
             rm -- "${archive}"
           fi
           if [[ ! -f "${archive}" ]]; then
-            curl --fail --location --retry 3 \
+            curl --fail --location --retry 3 --retry-connrefused \
+              --connect-timeout 15 --max-time 60 --retry-max-time 240 \
               "https://github.com/MetaCubeX/mihomo/releases/download/${MIHOMO_VERSION}/mihomo-linux-amd64-v1-${MIHOMO_VERSION}.gz" \
               --output "${archive}"
           fi
@@ -262,7 +268,7 @@ jobs:
 
       - name: Save verified mihomo archive to cache
         if: steps.mihomo-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: ${{ runner.temp }}/mihomo.gz
           key: mihomo-${{ runner.os }}-${{ runner.arch }}-${{ env.MIHOMO_VERSION }}-${{ env.MIHOMO_SHA256 }}
@@ -283,7 +289,17 @@ jobs:
         shell: bash
         run: |
           if [[ "${GITHUB_EVENT_NAME}" != 'pull_request' ]]; then
-            git fetch origin master
+            for attempt in {1..10}; do
+              if git fetch origin master; then
+                break
+              fi
+              if (( attempt == 10 )); then
+                echo '::error::Could not check current proxy rules after ten attempts.'
+                exit 1
+              fi
+              echo "Retrying the proxy source check (${attempt}/10)."
+              sleep "$(( attempt < 5 ? attempt : 5 ))"
+            done
             if ! git diff --quiet HEAD origin/master -- \
               mihomo/gambino-proxy.yaml; then
               echo 'Source changed; the newer workflow run will build MRS.'
@@ -356,19 +372,24 @@ jobs:
           git config user.email '161187558+Gambino36@users.noreply.github.com'
           git commit --allow-empty -m "Update gambino-proxy.mrs" -m "Proxy-Source: ${source_blob}"
           for attempt in {1..10}; do
-            git fetch origin master
-            if git merge-base --is-ancestor HEAD origin/master; then
-              git merge --ff-only origin/master
-              exit 0
+            if git fetch origin master; then
+              if git merge-base --is-ancestor HEAD origin/master; then
+                git merge --ff-only origin/master
+                exit 0
+              fi
+              if ! git diff --quiet "${base}" origin/master -- \
+                mihomo/gambino-proxy.yaml mihomo/gambino-proxy.mrs; then
+                echo '::error::Proxy files changed during compilation; the newer update will build them.'
+                exit 1
+              fi
+              git rebase origin/master
+              if git push origin HEAD:master; then
+                exit 0
+              fi
             fi
-            if ! git diff --quiet "${base}" origin/master -- \
-              mihomo/gambino-proxy.yaml mihomo/gambino-proxy.mrs; then
-              echo '::error::Proxy files changed during compilation; the newer update will build them.'
-              exit 1
-            fi
-            git rebase origin/master
-            if git push origin HEAD:master; then
-              exit 0
+            if (( attempt < 10 )); then
+              echo "Retrying proxy MRS publication after a network failure (${attempt}/10)."
+              sleep "$(( attempt < 5 ? attempt : 5 ))"
             fi
           done
           echo '::error::Could not publish proxy MRS after ten attempts.'
