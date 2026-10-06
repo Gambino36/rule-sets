@@ -25,7 +25,7 @@ jobs:
       proxy: ${{ steps.route.outputs.proxy }}
     steps:
       - name: Check out event history
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -95,13 +95,13 @@ jobs:
       MIHOMO_SHA256: 306f81e723e60ce6b828899a6fe83e1d00e9ecefb2dc8d4d849312a5bc00efdc
     steps:
       - name: Check out rules
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.ref }}
           fetch-depth: 0
 
       - name: Set up Python and cache pip packages
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: '3.12'
           cache: pip
@@ -242,7 +242,7 @@ jobs:
 
       - name: Restore cached mihomo archive
         id: mihomo-cache
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@v6
         with:
           path: ${{ runner.temp }}/mihomo.gz
           key: mihomo-${{ runner.os }}-${{ runner.arch }}-${{ env.MIHOMO_VERSION }}-${{ env.MIHOMO_SHA256 }}
@@ -268,7 +268,7 @@ jobs:
 
       - name: Save verified mihomo archive to cache
         if: steps.mihomo-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v5
+        uses: actions/cache/save@v6
         with:
           path: ${{ runner.temp }}/mihomo.gz
           key: mihomo-${{ runner.os }}-${{ runner.arch }}-${{ env.MIHOMO_VERSION }}-${{ env.MIHOMO_SHA256 }}
