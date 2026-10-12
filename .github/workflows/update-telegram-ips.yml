@@ -1,4 +1,4 @@
-name: Обновление Telegram IP
+name: Update Telegram IPs
 
 on:
   schedule:
